@@ -21,6 +21,7 @@ import (
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/windows"
 	"www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 )
 
 type ThreadHandleInfo struct {
@@ -30,8 +31,8 @@ type ThreadHandleInfo struct {
 }
 
 type ProcessHandleInfo struct {
-	TargetPid uint32 `json:"Pid,omitempty"`
-	Binary    string `json:"Binary,omitempty"`
+	Pid    uint32 `json:"Pid,omitempty"`
+	Binary string `json:"Binary,omitempty"`
 }
 
 type TokenHandleInfo struct {
@@ -86,7 +87,7 @@ func (self HandlesPlugin) Call(
 		defer vql_subsystem.CheckForPanic(scope, "handles")
 
 		arg := &HandlesPluginArgs{}
-		err = vfilter.ExtractArgs(scope, args, arg)
+		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("handles: %s", err.Error())
 			return
@@ -381,7 +382,7 @@ func GetProcessName(scope vfilter.Scope, handle syscall.Handle) *ProcessHandleIn
 		return nil
 	}
 
-	result := &ProcessHandleInfo{TargetPid: handle_info.UniqueProcessId}
+	result := &ProcessHandleInfo{Pid: handle_info.UniqueProcessId}
 
 	// Fetch the binary image
 	status = windows.NtQueryInformationProcess(

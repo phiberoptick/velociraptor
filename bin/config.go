@@ -87,10 +87,14 @@ var (
 	config_rotate_server_key = config_command.Command(
 		"rotate_key",
 		"Generate a new config file with a rotates server key.")
+
+	config_reissue_server_key = config_command.Command(
+		"reissue_key",
+		"Reissue all certificates with the same keys.")
 )
 
 func doShowConfig() {
-	config_obj, err := DefaultConfigLoader.LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 	kingpin.FatalIfError(err, "Unable to load config.")
 
 	if *config_show_command_json {
@@ -201,7 +205,7 @@ func doGenerateConfigNonInteractive() {
 }
 
 func doRotateKeyConfig() {
-	config_obj, err := DefaultConfigLoader.WithRequiredFrontend().LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().WithRequiredFrontend().LoadAndValidate()
 	kingpin.FatalIfError(err, "Unable to load config.")
 
 	logger := logging.GetLogger(config_obj, &logging.ToolComponent)
@@ -234,6 +238,42 @@ func doRotateKeyConfig() {
 	fmt.Printf("%v", string(res))
 }
 
+func doReissueServerKeys() {
+	config_obj, err := makeDefaultConfigLoader().WithRequiredFrontend().LoadAndValidate()
+	kingpin.FatalIfError(err, "Unable to load config.")
+
+	logger := logging.GetLogger(config_obj, &logging.ToolComponent)
+
+	// Frontends must have a well known common name.
+	frontend_cert, err := crypto.ReissueServerCert(
+		config_obj, config_obj.Frontend.Certificate,
+		config_obj.Frontend.PrivateKey)
+	if err != nil {
+		logger.Error("Unable to create Frontend cert: %v", err)
+		return
+	}
+
+	config_obj.Frontend.Certificate = frontend_cert.Cert
+	config_obj.Frontend.PrivateKey = frontend_cert.PrivateKey
+
+	// Generate gRPC gateway certificate.
+	gw_certificate, err := crypto.ReissueServerCert(
+		config_obj, config_obj.GUI.GwCertificate,
+		config_obj.GUI.GwPrivateKey)
+	if err != nil {
+		kingpin.FatalIfError(err, "Unable to create gatewat cert")
+	}
+
+	config_obj.GUI.GwCertificate = gw_certificate.Cert
+	config_obj.GUI.GwPrivateKey = gw_certificate.PrivateKey
+
+	res, err := yaml.Marshal(config_obj)
+	if err != nil {
+		kingpin.FatalIfError(err, "Unable to encode config.")
+	}
+	fmt.Printf("%v", string(res))
+}
+
 func getClientConfig(config_obj *config_proto.Config) *config_proto.Config {
 	// Copy only settings relevant to the client from the main
 	// config.
@@ -246,7 +286,7 @@ func getClientConfig(config_obj *config_proto.Config) *config_proto.Config {
 }
 
 func doDumpClientConfig() {
-	config_obj, err := DefaultConfigLoader.WithRequiredClient().LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().WithRequiredClient().LoadAndValidate()
 	kingpin.FatalIfError(err, "Unable to load config.")
 
 	client_config := getClientConfig(config_obj)
@@ -258,7 +298,7 @@ func doDumpClientConfig() {
 }
 
 func doDumpApiClientConfig() {
-	config_obj, err := DefaultConfigLoader.WithRequiredCA().
+	config_obj, err := makeDefaultConfigLoader().WithRequiredCA().
 		WithRequiredUser().
 		LoadAndValidate()
 	kingpin.FatalIfError(err, "Unable to load config.")
@@ -349,6 +389,9 @@ func init() {
 
 		case config_rotate_server_key.FullCommand():
 			doRotateKeyConfig()
+
+		case config_reissue_server_key.FullCommand():
+			doReissueServerKeys()
 
 		case config_client_command.FullCommand():
 			doDumpClientConfig()

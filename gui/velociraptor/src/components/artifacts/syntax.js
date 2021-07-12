@@ -2,6 +2,8 @@ import api from '../core/api-service.js';
 
 import language_tools from 'ace-builds/src-min-noconflict/ext-language_tools.js';
 
+// Custom VQL syntax highlighter
+import VqlMode from '../core/mode-vql.js';
 
 // This is a syntax editor class controlling suggestions from the
 // server.
@@ -136,7 +138,7 @@ export default class Completer {
                     type: "plugin",
                     value: item.name,
                     meta: item.type,
-                    docHTML: '<div class="text-wrap">' + item.description + "</div>",
+                    docHTML: '<div class="arg-help">' + item.description + "</div>",
                 });
             }
         }
@@ -163,7 +165,7 @@ export default class Completer {
                     replacement += "(";
 
                     if (item.description) {
-                        html = '<div class="text-wrap">' + item.description + "</div>";
+                        html = '<div class="arg-help">' + item.description + "</div>";
                     }
                 }
 
@@ -199,20 +201,29 @@ export default class Completer {
                         continue;
                     }
 
-                    var meta =  "plugin arg (" + arg.type + ")";
+                    let type = arg.type;
+                    if (arg.repeated) {
+                        type = "list of " + type;
+                    }
+
+                    if (arg.required) {
+                        type += " required";
+                    }
+
+                    var meta =  "plugin arg (" + type + ")";
                     if (item.type === "Artifact") {
                         meta = arg.type;
                     };
 
                     completions.push({
                         caption: arg_name,
-                        description: arg.description,
+                        description: arg.description || null,
                         snippet: arg.name + "=",
                         type: "argument",
                         value: arg.name,
                         score: 1000,
                         meta: meta,
-                        docHTML: '<div class="text-wrap">' + arg.description + "</div>",
+                        docHTML: '<div class="arg-help">' + arg.description + "</div>",
                     });
                 }
             }
@@ -235,7 +246,7 @@ export default class Completer {
 
                 var html = "";
                 if (item.description) {
-                    html = '<div class="text-wrap">' + item.description + "</div>";
+                    html = '<div class="arg-help">' + item.description + "</div>";
                 }
 
                 completions.push({
@@ -269,6 +280,20 @@ export default class Completer {
                         continue;
                     }
 
+                    let type = arg.type;
+                    if (arg.repeated) {
+                        type = "list of " + type;
+                    }
+
+                    if (arg.required) {
+                        type += " required";
+                    }
+
+                    var meta =  "function arg (" + type + ")";
+                    if (item.type === "Artifact") {
+                        meta = arg.type;
+                    };
+
                     completions.push({
                         caption: arg_name,
                         description: arg.description || null,
@@ -276,8 +301,8 @@ export default class Completer {
                         type: "argument",
                         score: 1000,
                         value: arg.name,
-                        meta: arg.type,
-                        docHTML: "<h1>" + arg.description + "</h1>",
+                        meta: meta,
+                        docHTML: '<div class="arg-help">' + arg.description + "</div>",
                     });
                 }
             }
@@ -287,10 +312,6 @@ export default class Completer {
 
 
     initializeAceEditor = (ace, options) => {
-        api.get('v1/GetKeywordCompletions').then((response) => {
-            this.state.completions = response.data['items'];
-        });
-
         // create a completer object with a required callback function:
         var vqlCompleter = {
             identifierRegexps: [/[a-zA-Z_0-9.?$\-\u00A2-\uFFFF]/],
@@ -326,6 +347,11 @@ export default class Completer {
                 }
             }
         };
+
+        api.get('v1/GetKeywordCompletions').then((response) => {
+            this.state.completions = response.data['items'];
+            VqlMode.setCompletions(this.state.completions);
+        });
 
         // finally, bind to langTools:
         language_tools.setCompleters();

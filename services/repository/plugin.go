@@ -113,7 +113,7 @@ func (self *ArtifactRepositoryPlugin) Call(
 		if pres {
 			lazy_v, ok := v.(types.LazyExpr)
 			if ok {
-				v = lazy_v.Reduce()
+				v = lazy_v.Reduce(ctx)
 			}
 
 			source, ok := v.(string)
@@ -132,6 +132,13 @@ func (self *ArtifactRepositoryPlugin) Call(
 			}
 		}
 
+		// Are preconditions required?
+		var precondition bool
+		precondition_any, pres := args.Get("preconditions")
+		if pres {
+			precondition = scope.Bool(precondition_any)
+		}
+
 		acl_manager, ok := artifacts.GetACLManager(scope)
 		if !ok {
 			acl_manager = vql_subsystem.NullACLManager{}
@@ -146,7 +153,7 @@ func (self *ArtifactRepositoryPlugin) Call(
 		request, err := launcher.CompileCollectorArgs(
 			ctx, config_obj, acl_manager, self.repository,
 			services.CompilerOptions{
-				DisablePrecondition: true,
+				DisablePrecondition: !precondition,
 			},
 			&flows_proto.ArtifactCollectorArgs{
 				Artifacts: []string{artifact_name},
@@ -179,10 +186,11 @@ func (self *ArtifactRepositoryPlugin) Call(
 		}
 
 		// Allow the args to override the artifact defaults.
-		for k, v := range *args.ToDict() {
-			if k == "source" {
+		for _, k := range args.Keys() {
+			if k == "source" || k == "preconditions" {
 				continue
 			}
+
 			_, pres := env.Get(k)
 			if !pres {
 				scope.Log(fmt.Sprintf(
@@ -191,15 +199,28 @@ func (self *ArtifactRepositoryPlugin) Call(
 				return
 			}
 
+			v, _ := args.Get(k)
+
 			lazy_v, ok := v.(types.LazyExpr)
 			if ok {
-				v = lazy_v.Reduce()
+				v = lazy_v.Reduce(ctx)
 			}
 			env.Set(k, v)
 		}
 
 		// Add the scope args
 		child_scope.AppendVars(env)
+
+		ok, err = actions.CheckPreconditions(ctx, scope, request[0])
+		if err != nil {
+			scope.Log("While evaluating preconditions: %v", err)
+			return
+		}
+
+		if !ok {
+			scope.Log("Skipping query due to preconditions")
+			return
+		}
 
 		for _, query := range request[0].Query {
 			query_log := actions.QueryLog.AddQuery(query.VQL)

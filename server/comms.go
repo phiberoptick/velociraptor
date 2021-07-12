@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -66,11 +67,6 @@ var (
 	receiveQPS = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "frontend_receive_QPS",
 		Help: "QPS of receive handler.",
-	})
-
-	loadshedCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "frontend_loadshed_count",
-		Help: "Number of connections rejected due to load shedding.",
 	})
 
 	receiveCounter = promauto.NewCounter(prometheus.CounterOpts{
@@ -132,9 +128,9 @@ func PrepareFrontendMux(
 	// does not have to be a physical directory - it is served
 	// from the filestore.
 	router.Handle(base+"/public/", GetLoggingHandler(config_obj, "/public")(
-		http.StripPrefix(base, http.FileServer(api.NewFileSystem(config_obj,
+		http.StripPrefix(base, forceMime(http.FileServer(api.NewFileSystem(config_obj,
 			file_store.GetFileStore(config_obj),
-			"/public/")))))
+			"/public/"))))))
 
 	return nil
 }
@@ -246,14 +242,6 @@ func control(server_obj *Server) http.Handler {
 	logger := logging.GetLogger(server_obj.config, &logging.FrontendComponent)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if !server_obj.throttler.Ready() {
-			loadshedCounter.Inc()
-
-			// Load shed connections with a 500 error.
-			http.Error(w, "", http.StatusServiceUnavailable)
-			return
-		}
-
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			panic("http handler is not a flusher")
@@ -601,6 +589,20 @@ func GetLoggingHandler(config_obj *config_proto.Config,
 			next.ServeHTTP(rec, r)
 		})
 	}
+}
+
+// Force mime type to binary stream.
+func forceMime(parent http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent directory listings.
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "binary/octet-stream")
+		parent.ServeHTTP(w, r)
+	})
 }
 
 // Calculate QPS

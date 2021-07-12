@@ -36,7 +36,6 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
-	"www.velocidex.com/golang/velociraptor/config"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
 	crypto_client "www.velocidex.com/golang/velociraptor/crypto/client"
 	crypto_utils "www.velocidex.com/golang/velociraptor/crypto/utils"
@@ -295,7 +294,7 @@ func removeService(name string) error {
 }
 
 func doRemove() {
-	config_obj, err := DefaultConfigLoader.LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 	kingpin.FatalIfError(err, "Unable to load config file")
 
 	logger := logging.GetLogger(config_obj, &logging.ClientComponent)
@@ -338,20 +337,14 @@ func loadClientConfig() (*config_proto.Config, error) {
 		return nil, err
 	}
 
-	// If the config path is not specified we look for the config
-	// file next to the service executable.
-	if *config_path == "" {
-		config_target_path := strings.TrimSuffix(
-			executable, filepath.Ext(executable)) + ".config.yaml"
-		config_path = &config_target_path
-	}
+	config_obj, err := makeDefaultConfigLoader().
 
-	config_obj, err := new(config.Loader).WithVerbose(*verbose_flag).
-		WithEmbedded().
-		WithFileLoader(*config_path).
+		// If the config path is not specified we look for the config
+		// file next to the service executable.
+		WithFileLoader(strings.TrimSuffix(
+			executable, filepath.Ext(executable)) + ".config.yaml").
 		WithRequiredClient().
-		WithWriteback().
-		LoadAndValidate()
+		WithWriteback().LoadAndValidate()
 	if err != nil {
 		// Config obj is not valid here, we can not actually
 		// log anything since we dont know where to send it so
@@ -558,7 +551,7 @@ func init() {
 		var err error
 		switch command {
 		case installl_command.FullCommand():
-			config_obj, err := DefaultConfigLoader.LoadAndValidate()
+			config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 			kingpin.FatalIfError(err, "Unable to load config file")
 			logger := logging.GetLogger(config_obj, &logging.ClientComponent)
 
@@ -588,26 +581,26 @@ func init() {
 			}
 
 		case start_command.FullCommand():
-			config_obj, err := DefaultConfigLoader.LoadAndValidate()
+			config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 			kingpin.FatalIfError(err, "Unable to load config file")
 			err = startService(config_obj.Client.WindowsInstaller.ServiceName)
 
 		case stop_command.FullCommand():
-			config_obj, err := DefaultConfigLoader.LoadAndValidate()
+			config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 			kingpin.FatalIfError(err, "Unable to load config file")
 			err = controlService(
 				config_obj.Client.WindowsInstaller.ServiceName,
 				svc.Stop, svc.Stopped)
 
 		case pause_command.FullCommand():
-			config_obj, err := DefaultConfigLoader.LoadAndValidate()
+			config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 			kingpin.FatalIfError(err, "Unable to load config file")
 			err = controlService(
 				config_obj.Client.WindowsInstaller.ServiceName,
 				svc.Pause, svc.Paused)
 
 		case continue_command.FullCommand():
-			config_obj, err := DefaultConfigLoader.LoadAndValidate()
+			config_obj, err := makeDefaultConfigLoader().LoadAndValidate()
 			kingpin.FatalIfError(err, "Unable to load config file")
 			err = controlService(
 				config_obj.Client.WindowsInstaller.ServiceName,

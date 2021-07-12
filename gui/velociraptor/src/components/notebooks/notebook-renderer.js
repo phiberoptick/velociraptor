@@ -130,7 +130,7 @@ export default class NotebookRenderer extends React.Component {
         }
     };
 
-    addCell = (cell_id, cell_type, content) => {
+    addCell = (cell_id, cell_type, content, env) => {
         let request = {};
         switch(cell_type) {
         case "VQL":
@@ -140,6 +140,7 @@ export default class NotebookRenderer extends React.Component {
                 notebook_id: this.props.notebook.notebook_id,
                 type: cell_type,
                 cell_id: cell_id,
+                env: env,
                 input: content,
             }; break;
         default:
@@ -170,6 +171,7 @@ export default class NotebookRenderer extends React.Component {
                            selected_cell_id={this.state.selected_cell_id}
                            setSelectedCellId={this.setSelectedCellId}
                            notebook_id={this.props.notebook.notebook_id}
+                           notebook_metadata={this.props.notebook}
                            cell_metadata={cell_md} key={idx}
                            upCell={this.upCell}
                            downCell={this.downCell}

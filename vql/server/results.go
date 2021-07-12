@@ -38,6 +38,7 @@ import (
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/server/hunts"
 	"www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 )
 
 type UploadsPluginsArgs struct {
@@ -70,8 +71,10 @@ func (self UploadsPlugins) Call(
 			return
 		}
 
+		ParseUploadArgsFromScope(arg, scope)
+
 		// Allow the plugin args to override the environment scope.
-		err = vfilter.ExtractArgs(scope, args, arg)
+		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("uploads: %v", err)
 			return
@@ -103,6 +106,18 @@ func (self UploadsPlugins) Info(
 		Name:    "uploads",
 		Doc:     "Retrieve information about a flow's uploads.",
 		ArgType: type_map.AddType(scope, &UploadsPluginsArgs{}),
+	}
+}
+
+func ParseUploadArgsFromScope(arg *UploadsPluginsArgs, scope vfilter.Scope) {
+	client_id, pres := scope.Resolve("ClientId")
+	if pres {
+		arg.ClientId, _ = client_id.(string)
+	}
+
+	flow_id, pres := scope.Resolve("FlowId")
+	if pres {
+		arg.FlowId, _ = flow_id.(string)
 	}
 }
 
@@ -174,7 +189,7 @@ func (self SourcePlugin) Call(
 		ParseSourceArgsFromScope(arg, scope)
 
 		// Allow the plugin args to override the environment scope.
-		err = vfilter.ExtractArgs(scope, args, arg)
+		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("source: %v", err)
 			return
@@ -436,7 +451,7 @@ func (self FlowResultsPlugin) Call(
 		}
 
 		arg := &FlowResultsPluginArgs{}
-		err = vfilter.ExtractArgs(scope, args, arg)
+		err = arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("hunt_results: %v", err)
 			return

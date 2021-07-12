@@ -26,6 +26,14 @@ machine) as normal.
 Once you are ready for a full deployment, check out the various deployment options at
 https://www.velocidex.com/docs/getting-started
 
+## Training
+
+We have our complete training course (7 sessions x 2 hours each) on
+YouTube here
+https://www.youtube.com/playlist?list=PLz4xB83Y3Vbjtqr_ttOkBWZZ_ewEVVPXQ
+
+The course covers many aspects of Velociraptor in detail.
+
 ## Running Velociraptor via Docker
 
 To run a Velociraptor server via Docker, follow the instructions here:
@@ -45,7 +53,10 @@ Velociraptor is also useful as a local triage tool. You can create a self contai
 ## Building from source
 
 To build from source, make sure you have a recent Golang installed
-from https://golang.org/dl/ (Currently at least Go 1.14):
+from https://golang.org/dl/ (Currently at least Go 1.14) and the go
+binary is on your path. In addition make sure the GOBIN directory is
+also on your path (Defaults are: on linux and mac `~/go/bin`, on
+Windows `c:\\Users\\<username>\\go\\bin`) :
 
 ```bash
     $ git clone https://github.com/Velocidex/velociraptor.git

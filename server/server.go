@@ -62,9 +62,10 @@ type Server struct {
 	db      datastore.DataStore
 
 	// Limit concurrency for processing messages.
-	mu          sync.Mutex
-	concurrency *utils.Concurrency
-	throttler   *utils.Throttler
+	mu                  sync.Mutex
+	concurrency         *utils.Concurrency
+	concurrency_timeout time.Duration
+	throttler           *utils.Throttler
 
 	// The server dynamically adjusts concurrency. This signals exit.
 	done chan bool
@@ -127,12 +128,10 @@ func (self *Server) adjustConcurrency(
 	}
 
 	// Install the new concurrency controller.
-
 	targetConcurrency.Set(float64(concurrency))
 	heapSize.Set(float64(s.Alloc))
 	self.mu.Lock()
-	self.concurrency = utils.NewConcurrencyControl(
-		int(concurrency), 60*time.Second)
+	self.concurrency = utils.NewConcurrencyControl(int(concurrency), self.concurrency_timeout)
 	self.mu.Unlock()
 
 	return concurrency
@@ -158,7 +157,9 @@ func (self *Server) ManageConcurrency(max_concurrency uint64, target_heap_size u
 func (self *Server) Close() {
 	close(self.done)
 	self.db.Close()
-	self.throttler.Close()
+	if self.throttler != nil {
+		self.throttler.Close()
+	}
 }
 
 func NewServer(ctx context.Context,
@@ -188,19 +189,32 @@ func NewServer(ctx context.Context,
 		concurrency = 2 * uint64(runtime.GOMAXPROCS(0))
 	}
 
+	concurrency_timeout := config_obj.Frontend.Resources.ConcurrencyTimeout
+	if concurrency_timeout == 0 {
+		concurrency_timeout = 600
+	}
+
 	result := Server{
-		config:      config_obj,
-		manager:     manager,
-		db:          db,
-		logger:      logging.GetLogger(config_obj, &logging.FrontendComponent),
-		concurrency: utils.NewConcurrencyControl(int(concurrency), 60*time.Second),
-		throttler:   utils.NewThrottler(config_obj.Frontend.Resources.ConnectionsPerSecond),
-		done:        make(chan bool),
+		config:              config_obj,
+		manager:             manager,
+		db:                  db,
+		logger:              logging.GetLogger(config_obj, &logging.FrontendComponent),
+		concurrency_timeout: time.Duration(concurrency) * time.Second,
+		done:                make(chan bool),
+	}
+
+	result.concurrency = utils.NewConcurrencyControl(
+		int(concurrency), result.concurrency_timeout)
+
+	if config_obj.Frontend.Resources.ConnectionsPerSecond > 0 {
+		result.logger.Info("Throttling connections to %v QPS",
+			config_obj.Frontend.Resources.ConnectionsPerSecond)
+		result.throttler = utils.NewThrottler(config_obj.Frontend.Resources.ConnectionsPerSecond)
 	}
 
 	heap_size := config_obj.Frontend.Resources.TargetHeapSize
 	if heap_size > 0 {
-		// If we are targetting a heap size then modulate concurrency
+		// If we are targetting a heap size then regulate concurrency
 		result.logger.Info("Targetting heap size %v, with maximum concurrency %v",
 			heap_size, concurrency)
 
@@ -254,6 +268,8 @@ func (self *Server) Process(
 	drain_requests_for_client bool) (
 	[]byte, int, error) {
 
+	// json.TraceMessage(message_info.Source, message_info)
+
 	runner := flows.NewFlowRunner(self.config)
 	defer runner.Close()
 
@@ -281,6 +297,12 @@ func (self *Server) Process(
 			message_list.Job,
 			self.DrainRequestsForClient(message_info.Source)...)
 	}
+
+	/*
+		for i := 0; i < len(message_list.Job); i++ {
+			json.TraceMessage(message_info.Source+"_out", message_list.Job[i])
+		}
+	*/
 
 	// Messages sent to clients are typically small and we do not
 	// benefit from compression.

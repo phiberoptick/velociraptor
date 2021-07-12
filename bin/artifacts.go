@@ -79,9 +79,9 @@ var (
 		"format", "Output format to use  (text,json,csv,jsonl).").
 		Default("json").Enum("text", "json", "csv", "jsonl")
 
-	artifact_command_collect_name = artifact_command_collect.Arg(
+	artifact_command_collect_names = artifact_command_collect.Arg(
 		"artifact_name", "The artifact name to collect.").
-		Required().HintAction(listArtifactsHint).String()
+		Required().HintAction(listArtifactsHint).Strings()
 
 	artifact_command_collect_args = artifact_command_collect.Flag(
 		"args", "Artifact args.").Strings()
@@ -124,26 +124,40 @@ func getRepository(config_obj *config_proto.Config) (services.Repository, error)
 func doArtifactCollect() {
 	checkAdmin()
 
-	config_obj, err := DefaultConfigLoader.WithNullLoader().LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().WithNullLoader().LoadAndValidate()
 	kingpin.FatalIfError(err, "Load Config ")
 
 	sm, err := startEssentialServices(config_obj)
 	kingpin.FatalIfError(err, "Load Config ")
 	defer sm.Close()
 
-	collect_args := ordereddict.NewDict()
-	for _, item := range *artifact_command_collect_args {
-		parts := strings.SplitN(item, "=", 2)
-		arg_name := parts[0]
+	spec := ordereddict.NewDict()
+	for _, name := range *artifact_command_collect_names {
+		collect_args := ordereddict.NewDict()
+		for _, item := range *artifact_command_collect_args {
+			// If an arg has to apply only to a single
+			// artifact then the user may prepend the name
+			// of the artifact with a :: separator.
+			namespaces := strings.SplitN(item, "::", 2)
+			if len(namespaces) == 2 {
+				if namespaces[0] != name {
+					continue
+				}
+				item = namespaces[1]
+			}
 
-		if len(parts) < 2 {
-			collect_args.Set(arg_name, "Y")
-		} else {
-			collect_args.Set(arg_name, parts[1])
+			parts := strings.SplitN(item, "=", 2)
+			arg_name := parts[0]
+
+			if len(parts) < 2 {
+				collect_args.Set(arg_name, "Y")
+			} else {
+				collect_args.Set(arg_name, parts[1])
+			}
 		}
-	}
 
-	collect_args = ordereddict.NewDict().Set(*artifact_command_collect_name, collect_args)
+		spec.Set(name, collect_args)
+	}
 
 	manager, err := services.GetRepositoryManager()
 	kingpin.FatalIfError(err, "GetRepositoryManager")
@@ -153,11 +167,11 @@ func doArtifactCollect() {
 		ACLManager: vql_subsystem.NullACLManager{},
 		Logger:     log.New(&LogWriter{config_obj}, " ", 0),
 		Env: ordereddict.NewDict().
-			Set("Artifacts", []string{*artifact_command_collect_name}).
+			Set("Artifacts", *artifact_command_collect_names).
 			Set("Output", *artifact_command_collect_output).
 			Set("Password", *artifact_command_collect_output_password).
 			Set("Report", *artifact_command_collect_report).
-			Set("Args", collect_args).
+			Set("Args", spec).
 			Set("Format", *artifact_command_collect_format),
 	})
 	defer scope.Close()
@@ -191,7 +205,7 @@ func getFilterRegEx(pattern string) (*regexp.Regexp, error) {
 }
 
 func doArtifactShow() {
-	config_obj, err := DefaultConfigLoader.WithNullLoader().LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().WithNullLoader().LoadAndValidate()
 	kingpin.FatalIfError(err, "Load Config ")
 
 	sm, err := startEssentialServices(config_obj)
@@ -212,7 +226,7 @@ func doArtifactShow() {
 }
 
 func doArtifactList() {
-	config_obj, err := DefaultConfigLoader.WithNullLoader().LoadAndValidate()
+	config_obj, err := makeDefaultConfigLoader().WithNullLoader().LoadAndValidate()
 	kingpin.FatalIfError(err, "Load Config ")
 
 	sm, err := startEssentialServices(config_obj)

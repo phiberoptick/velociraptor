@@ -3,9 +3,11 @@ package reporting
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"html"
 	"io"
+	"io/ioutil"
 	"regexp"
 	"strings"
 
@@ -25,6 +27,9 @@ var (
 	// Must match the output emitted by GuiTemplateEngine.Table
 	csvViewerRegexp = regexp.MustCompile(
 		`<grr-csv-viewer base-url="'v1/GetTable'" params='([^']+)' />`)
+
+	imageRegex = regexp.MustCompile(
+		`<img src=\"/notebooks/(?P<NotebookId>N.[^/]+)/(?P<Attachment>NA.[^.]+.png)\" (?P<Extra>[^>]*)>`)
 )
 
 const (
@@ -294,9 +299,37 @@ func ExportNotebookToHTML(
 			return err
 		}
 
-		// Expand tables
-		cell_output := csvViewerRegexp.ReplaceAllStringFunc(
+		cell_output := imageRegex.ReplaceAllStringFunc(
 			cell.Output, func(in string) string {
+				file_store_factory := file_store.GetFileStore(config_obj)
+
+				submatches := imageRegex.FindStringSubmatch(in)
+				if len(submatches) < 3 {
+					return in
+				}
+				extra := ""
+				if len(submatches) > 3 {
+					extra = submatches[3]
+				}
+
+				item_path := notebook_path_manager.Cell("").Item(submatches[2])
+				fd, err := file_store_factory.ReadFile(item_path)
+				if err != nil {
+					return in
+				}
+
+				data, err := ioutil.ReadAll(fd)
+				if err != nil {
+					return in
+				}
+
+				return fmt.Sprintf(`<img src="data:image/jpg;base64,%v" %s>`,
+					base64.StdEncoding.EncodeToString(data), extra)
+			})
+
+		// Expand tables
+		cell_output = csvViewerRegexp.ReplaceAllStringFunc(
+			cell_output, func(in string) string {
 				result, err := convertCSVTags(ctx, config_obj, in, cell)
 				if err != nil {
 					return fmt.Sprintf(

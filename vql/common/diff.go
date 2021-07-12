@@ -40,7 +40,7 @@ The key must be a string. You can create the key using the format()
 VQL function where you can combine several columns to create a unique
 key. For example watching for new files or modified files can be achieved by:
 
-SELECT format(format="%v@%v", args=[FullPath, Mtime.Sec]) as Key, ....
+SELECT format(format="%v@%v", args=[FullPath, Mtime.Unix]) as Key, ....
 
 */
 package common
@@ -53,6 +53,7 @@ import (
 	"github.com/Velocidex/ordereddict"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 )
 
 type _DiffCache struct {
@@ -167,7 +168,7 @@ func (self _DiffPlugin) Call(ctx context.Context,
 		defer close(output_chan)
 
 		arg := &_DiffPluginArgs{}
-		err := vfilter.ExtractArgs(scope, args, arg)
+		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("diff: %v", err)
 			return

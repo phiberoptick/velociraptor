@@ -21,7 +21,8 @@
 .file-hex-view  table  .offset {
     font-weight: bold;
     color: var(--color-table-row-offset);
-    padding-right: 1ex;
+    padding-right: 20px;
+    padding-left: 20px;
 }
 
 .file-hex-view  table  td {
@@ -38,4 +39,26 @@
     margin-top: 50px;
     font-size: 2.0em;
     color: var(--color-no-content-color);
+}
+
+
+.file-hex-view td, .file-hex-view th {
+    border: 0px;
+}
+
+.file-hex-view td, .file-hex-view button {
+    width: 100%;
+}
+
+td.hex_column, th.hex_column {
+    width: fit-content;
+}
+
+td.offset {
+    text-align: right;
+}
+
+th.offset {
+    text-align: right;
+    padding-right: 40px;
 }

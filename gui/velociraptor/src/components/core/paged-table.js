@@ -23,6 +23,7 @@ import Spinner from '../utils/spinner.js';
 import api from '../core/api-service.js';
 import VeloTimestamp from "../utils/time.js";
 import ClientLink from '../clients/client-link.js';
+import HexView from '../utils/hex.js';
 
 import { InspectRawJson, ColumnToggleList, sizePerPageRenderer, PrepareData } from './table.js';
 
@@ -91,6 +92,13 @@ class VeloPagedTable extends Component {
         // The URL Handler to fetch the table content. Defaults to
         // "v1/GetTable".
         url: PropTypes.string,
+
+
+        // When called will cause the table to be recalculated.
+        refresh: PropTypes.func,
+
+        // A version to force refresh of the table.
+        version: PropTypes.object,
     }
 
     state = {
@@ -119,6 +127,10 @@ class VeloPagedTable extends Component {
     }
 
     componentDidUpdate(prevProps, prevState, snapshot) {
+        if (!_.isEqual(prevProps.version, this.props.version)) {
+            this.fetchRows();
+        };
+
         if (!_.isEqual(prevProps.params, this.props.params)) {
             this.setState({start_row: 0, toggles: {}, columns: []});
         };
@@ -143,6 +155,15 @@ class VeloPagedTable extends Component {
             if (column === column_types[i].name) {
                 let type = column_types[i].type;
                 switch (type) {
+                case "base64":
+                    return (cell, row, rowIndex)=>{
+                        let decoded = cell.slice(0,1000);
+                        try {
+                            decoded = atob(cell);
+                        } catch(e) {};
+
+                        return <HexView data={decoded} height="2"/>;
+                    };
                 case "timestamp":
                     return (cell, row, rowIndex)=><VeloTimestamp usec={cell * 1000} iso={cell}/>;
 
@@ -225,8 +246,16 @@ class VeloPagedTable extends Component {
         }
 
         if (_.isEmpty(this.state.columns)) {
+            if (this.props.refresh) {
+                return <div className="no-content">
+                         <div>No Data Available.</div>
+                         <Button variant="default" onClick={this.props.refresh}>
+                           Recalculate <FontAwesomeIcon icon="sync"/>
+                         </Button>
+                       </div>;
+            }
             return <div className="no-content">
-                     No Data Available.
+                     <div>No Data Available.</div>
                    </div>;
         }
 

@@ -33,6 +33,12 @@ message ArtifactParameter {
     string friendly_name = 5;
 }
 
+message NotebookSourceCell {
+    string template = 1;
+    string type = 2;
+}
+
+
 message ArtifactSource {
     option (semantic) = {
         description: "Where the artifact gets its data."
@@ -58,14 +64,14 @@ message ArtifactSource {
             description: "A multi-line VQL query"
         }];
 
+    // Deprecated - use query above for new artifacts.
     repeated string queries = 2 [(sem_type) = {
             description: "Queries that will run in order. Only output from "
             "the last query will be collected."
         }];
 
-    repeated string post_process = 5 [(sem_type) = {
-            description: "A list of queries that will be run over the results for post processing.",
-        }];
+    // Notebook cells that will be added as part of the source.
+    repeated NotebookSourceCell notebook = 5;
 }
 
 

@@ -37,7 +37,6 @@
     --background-color: #121212;
     --border-color: #222222;
     --text-foreground: #eeeeee;
-    --btn-default-background: #0c500a;
     --btn-default-background: #5cd00a80;
     --color-default-background: #121212;
     --btn-default-background-hover: #0c900a80;
@@ -54,9 +53,20 @@
     --card-heading-background-color: #444444;
     --table-heading-background-color: #444444;
     --color-table-row-selected: #8f8f8f50;
-
+    --color-monospace-color: #eeeeee;
     --scrollbar-track: #121212;
     --app-footer-background-color: #444444;
+
+    --color-default-font: #eeeeee;
+    --color-timeline-header: #cdcdcd20;
+    --color-timeline-table-shown: #dd4b3920;
+    --color-timeline-1: #dff0d820;
+    --color-timeline-2: #a9444220;
+    --color-timeline-3: #2aabd2;
+    --color-timeline-4: #f0c36d;
+    --color-timeline-5: #bbb;
+    --color-timeline-6: #008000;
+    --color-timeline-7: #471ecb;
 }
 
 .dark-mode .btn {
@@ -253,12 +263,6 @@
     background-color: var(--background-color);
 }
 
-/* hexview */
-.dark-mode .hexdump {
-    filter: invert(1);
-}
-
-
 /* width */
 .dark-mode ::-webkit-scrollbar {
     width: 10px;
@@ -340,4 +344,42 @@
 /* Shell output */
 .dark-mode .notebook-output pre {
     filter: invert(1);
+}
+
+/* ACE things */
+.dark-mode .ace_tooltip {
+    background-color: var(--background-color);
+    color: var(--text-foreground);
+}
+
+
+.dark-mode .custom-tooltip {
+    margin: 0;
+    padding: 10px;
+    background-color: var(--background-color);
+    border: 1px solid #ccc;
+    white-space: nowrap;
+    display: block;
+}
+
+
+.dark-mode .file-hex-view td, .file-hex-view th {
+    border: 0px;
+}
+
+.dark-mode .labels, .dark-mode .velo__control, .dark-mode .velo__menu {
+    background-color: var(--background-color);
+    color: var(--text-foreground);
+}
+
+.dark-mode .velo__multi-value {
+    background-color: var(--btn-default-background);
+}
+
+.dark-mode .velo__input {
+    color: var(--text-foreground);
+}
+
+.dark-mode .velo__option:hover, .dark-mode .velo__option--is-focused, .dark-mode .velo__multi-value:hover {
+    background-color: var(--btn-default-background-hover);
 }

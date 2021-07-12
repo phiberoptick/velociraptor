@@ -23,6 +23,7 @@ package vtesting
 import (
 	"io/ioutil"
 	"runtime/debug"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,20 +38,6 @@ func ReadFile(t *testing.T, filename string) []byte {
 	return result
 }
 
-type Clock interface {
-	Now() time.Time
-	After(d time.Duration) <-chan time.Time
-}
-
-type RealClock struct{}
-
-func (self RealClock) Now() time.Time {
-	return time.Now()
-}
-func (self RealClock) After(d time.Duration) <-chan time.Time {
-	return time.After(d)
-}
-
 // Compares lists of strings regardless of order.
 func CompareStrings(expected []string, watched []string) bool {
 	if len(expected) != len(watched) {
@@ -63,6 +50,15 @@ func CompareStrings(expected []string, watched []string) bool {
 		}
 	}
 	return true
+}
+
+func ContainsString(expected string, watched []string) bool {
+	for _, line := range watched {
+		if strings.Contains(line, expected) {
+			return true
+		}
+	}
+	return false
 }
 
 func WaitUntil(deadline time.Duration, t *testing.T, cb func() bool) {

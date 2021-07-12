@@ -43,12 +43,14 @@ import (
 	errors "github.com/pkg/errors"
 	"www.velocidex.com/golang/regparser"
 	config_proto "www.velocidex.com/golang/velociraptor/config/proto"
+	"www.velocidex.com/golang/velociraptor/constants"
 	"www.velocidex.com/golang/velociraptor/glob"
 	"www.velocidex.com/golang/velociraptor/json"
 	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/velociraptor/vql/readers"
 	"www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 )
 
 const (
@@ -217,12 +219,15 @@ func (self *RawRegFileSystemAccessor) getRegHive(
 	self.mu.Lock()
 	defer self.mu.Unlock()
 
+	lru_size := vql_subsystem.GetIntFromRow(
+		self.scope, self.scope, constants.RAW_REG_CACHE_SIZE)
 	hive, pres := self.hive_cache[cache_key]
 	if !pres {
 		paged_reader := readers.NewPagedReader(
 			self.scope,
 			base_url.Scheme, // Accessor
 			base_url.Path,   // Path to underlying file
+			int(lru_size),
 		)
 		hive, err = regparser.NewRegistry(paged_reader)
 		if err != nil {
@@ -345,7 +350,7 @@ func (self ReadKeyValues) Call(
 	ctx context.Context,
 	scope vfilter.Scope,
 	args *ordereddict.Dict) <-chan vfilter.Row {
-	globber := make(glob.Globber)
+	globber := glob.NewGlobber()
 	output_chan := make(chan vfilter.Row)
 
 	go func() {
@@ -357,7 +362,7 @@ func (self ReadKeyValues) Call(
 		}
 
 		arg := &ReadKeyValuesArgs{}
-		err := vfilter.ExtractArgs(scope, args, arg)
+		err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 		if err != nil {
 			scope.Log("read_reg_key: %s", err.Error())
 			return

@@ -16,6 +16,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/glob"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	"www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 )
 
 type WebDAVUploadArgs struct {
@@ -34,7 +35,7 @@ func (self *WebDAVUploadFunction) Call(ctx context.Context,
 	args *ordereddict.Dict) vfilter.Any {
 
 	arg := &WebDAVUploadArgs{}
-	err := vfilter.ExtractArgs(scope, args, arg)
+	err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 	if err != nil {
 		scope.Log("upload_webdav: %s", err.Error())
 		return vfilter.Null{}
@@ -103,6 +104,7 @@ func upload_webdav(ctx context.Context, scope vfilter.Scope,
 	parsedUrl.Path = path.Join(parsedUrl.Path, name)
 
 	var netTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: 30 * time.Second, // TCP connect timeout
 		}).DialContext,

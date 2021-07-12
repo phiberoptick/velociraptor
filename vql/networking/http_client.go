@@ -41,6 +41,7 @@ import (
 	"www.velocidex.com/golang/velociraptor/utils"
 	vql_subsystem "www.velocidex.com/golang/velociraptor/vql"
 	vfilter "www.velocidex.com/golang/vfilter"
+	"www.velocidex.com/golang/vfilter/arg_parser"
 	"www.velocidex.com/golang/vfilter/types"
 )
 
@@ -145,6 +146,7 @@ func GetHttpClient(
 		return &http.Client{
 			Timeout: time.Second * 10000,
 			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConnsPerHost: 10,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", components[0])
@@ -164,6 +166,7 @@ func GetHttpClient(
 		http_client_no_ssl = &http.Client{
 			Timeout: time.Second * 10000,
 			Transport: &http.Transport{
+				Proxy:        http.ProxyFromEnvironment,
 				MaxIdleConns: 10,
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
@@ -181,6 +184,7 @@ func GetHttpClient(
 	http_client = &http.Client{
 		Timeout: time.Second * 10000,
 		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
 			Dial: (&net.Dialer{
 				KeepAlive: 600 * time.Second,
 			}).Dial,
@@ -240,7 +244,7 @@ func (self *_HttpPlugin) Call(
 	args *ordereddict.Dict) <-chan vfilter.Row {
 	output_chan := make(chan vfilter.Row)
 	arg := &HttpPluginRequest{}
-	err := vfilter.ExtractArgs(scope, args, arg)
+	err := arg_parser.ExtractArgsWithContext(ctx, scope, args, arg)
 	if err != nil {
 		goto error
 	}
@@ -290,7 +294,7 @@ func (self *_HttpPlugin) Call(
 				if pres {
 					lazy_v, ok := value.(types.LazyExpr)
 					if ok {
-						value = lazy_v.Reduce()
+						value = lazy_v.Reduce(ctx)
 					}
 
 					str_value, ok := value.(string)

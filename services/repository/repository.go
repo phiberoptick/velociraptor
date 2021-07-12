@@ -107,10 +107,14 @@ func (self *Repository) LoadDirectory(config_obj *config_proto.Config, dirname s
 	return count, err
 }
 
-var query_regexp = regexp.MustCompile(`(?im)(^ +- +)(SELECT|LET|//)`)
+var query_regexp = regexp.MustCompile(`(?im)^[\s-]*(precondition|query):\s*$`)
+var queries_regexp = regexp.MustCompile(`(?im)(^ +- +)(SELECT|LET|//)`)
 
 // Fix common YAML errors.
 func sanitize_artifact_yaml(data string) string {
+	// First convert to standard line ending.
+	data = strings.Replace(data, "\r\n", "\n", -1)
+
 	// YAML has two types of block level scalars. The default one
 	// (which is more intuitive to use) does not preserve white
 	// space. This leads to terrible rendering in the GUI and
@@ -123,11 +127,15 @@ func sanitize_artifact_yaml(data string) string {
 	// order to trick the yaml decoder to do the right thing.
 
 	result := query_regexp.ReplaceAllStringFunc(data, func(m string) string {
-		parts := query_regexp.FindStringSubmatch(m)
+		return m + " |\n"
+	})
+
+	result = queries_regexp.ReplaceAllStringFunc(result, func(m string) string {
+		parts := queries_regexp.FindStringSubmatch(m)
 		return parts[1] + "|\n" + strings.Repeat(" ", len(parts[1])) + parts[2]
 	})
-	return result
 
+	return result
 }
 
 func (self *Repository) LoadYaml(data string, validate bool) (
@@ -275,6 +283,36 @@ func (self *Repository) LoadProto(artifact *artifacts_proto.Artifact, validate b
 	self.artifact_plugin = nil
 
 	return artifact, nil
+}
+
+func (self *Repository) GetArtifactType(
+	config_obj *config_proto.Config, artifact_name string) (string, error) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
+
+	artifact, pres := self.get(artifact_name)
+	if !pres {
+		return "", fmt.Errorf("Artifact %s not known", artifact_name)
+	}
+
+	return artifact.Type, nil
+}
+
+func (self *Repository) GetSource(
+	config_obj *config_proto.Config, name string) (*artifacts_proto.ArtifactSource, bool) {
+	artifact_name, source_name := paths.SplitFullSourceName(name)
+
+	artifact, pres := self.Get(config_obj, artifact_name)
+	if !pres {
+		return nil, false
+	}
+	for _, source := range artifact.Sources {
+		if source.Name == source_name {
+			return source, true
+		}
+	}
+
+	return nil, false
 }
 
 func (self *Repository) Get(
